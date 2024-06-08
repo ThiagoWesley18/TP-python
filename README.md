@@ -3,7 +3,7 @@
 ## gui.py
 Ler um arquivo `dadosBD.csv` e exibe o grafico e a tabela com as informações do arquivo em uma interface gráfica utilizando `tkinter`.
 
-## arq.csv
+## dadosBD.csv
 Arquivo csv com os dados para o grafico e a tabela no formato:
 ``` 
 Desempregados,Taxa de desemprego,Desalentados,Subtilizados
