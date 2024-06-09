@@ -1,7 +1,7 @@
-import os
 import tkinter as tk
 import matplotlib
 import pandas as pd
+import sqlite3
 
 matplotlib.use('TkAgg')
 
@@ -12,14 +12,15 @@ from matplotlib.backends.backend_tkagg import (
 )
 
 class App(tk.Tk):
-    def __init__(self, dados):
+    def __init__(self):
         super().__init__()
-
         self.title('Desemprego IBGE')
-        self.dados = dados
-        self.last_modified = os.path.getmtime('dadosBD.csv') # Pega o tempo da última modificação do arquivo
-        self.after(1000, self.check_file) # Verifica se o arquivo foi modificado a cada 1 segundo e chama o método check_file
+        self.con = sqlite3.connect('desempregados.db')
+        self.dados = pd.read_sql_query("SELECT * FROM desempregados", self.con)
+        self.last_change_count = self.con.total_changes
         self.create_widgets() # Cria os widgets da aplicação
+        self.check_update() # Verifica se a base de dados foi atualizada
+        self.after(1000, self.check_update) # Verifica novamente após 1 segundo
 
     # Método para limpar os widgets da aplicação
     def clear_widgets(self):
@@ -31,8 +32,8 @@ class App(tk.Tk):
     def create_widgets(self):
         # Cria um dicionário com os dados que serão plotados
         data = {
-            "Taxa de desemprego": self.dados.iloc[0,0],
-            "Taxa de Subtilização": self.dados.iloc[0,3]
+            "Taxa de desemprego": self.dados.iloc[1,2],
+            "Taxa de Subtilização": self.dados.iloc[3,2]
         }
         indices = data.keys()
         valores = data.values()
@@ -57,13 +58,30 @@ class App(tk.Tk):
 
         figure_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-        # Cria um frame para exibir os dados da tabela
-        frame = tk.Frame(self)
-        frame.pack()
+        # Cria um Canvas
+        canvas = tk.Canvas(self)
+        canvas.pack(side=tk.LEFT, fill='both', expand=True)  # Alterado aqui
+
+        # Cria uma barra de rolagem e a associa ao Canvas
+        scrollbar = tk.Scrollbar(self, command=canvas.yview)
+        scrollbar.pack(side=tk.LEFT, fill='y')  # Alterado aqui
+
+        # Configura o Canvas para usar a barra de rolagem
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Cria um frame para exibir os dados da tabela e coloca dentro do Canvas
+        frame = tk.Frame(canvas)
+        canvas.create_window((0,0), window=frame, anchor='nw')
+
+        # Atualiza a barra de rolagem para acompanhar o conteúdo do Canvas
+        def update_scrollregion(event):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+
+        frame.bind('<Configure>', update_scrollregion)
 
         total_rows = self.dados.shape[0] 
         total_columns = self.dados.shape[1] 
-        column_labels = ["Desempregados (Milhões)", "Taxa de Desemprego (%)", "Ocupados (Milhões)", "Taxa de Subtilização (%)"]
+        column_labels = ["id", "Titulo", "Valor", "Periodo"]
 
         # Cria os rótulos das colunas
         for j in range(total_columns):
@@ -75,21 +93,24 @@ class App(tk.Tk):
             for j in range(total_columns): 
                 e = tk.Entry(frame, width=20, fg='blue', font=('Arial',10)) 
                 e.grid(row=i+1, column=j)  
-                e.insert(tk.END, str(self.dados.iloc[i,j])) 
-    
-    # Método para verificar se o arquivo foi modificado
-    def check_file(self):
-        current_time = os.path.getmtime('dadosBD.csv') # Pega o tempo da última modificação do arquivo
-        if current_time != self.last_modified:
-            self.last_modified = current_time
-            self.dados = pd.read_csv('dadosBD.csv')
+                e.insert(tk.END, str(self.dados.iloc[i,j]))
+
+    def fetch_data(self):
+        self.con.close()
+        self.con = sqlite3.connect('desempregados.db')
+        self.dados = pd.read_sql_query("SELECT * FROM desempregados", self.con) 
+
+    # Método para verificar se a base de dados foi atualizada
+    def check_update(self):
+        current_change_count = self.con.total_changes
+        if current_change_count > self.last_change_count:
+            self.fetch_data()
+            print("A base de dados foi atualizada.")
+            self.last_change_count = current_change_count
             self.clear_widgets() # Limpa os widgets da aplicação
-            self.create_widgets() # Cria os widgets da aplicação
-        self.after(1000, self.check_file) # Chama o método check_file a cada 1 segundo 
+            self.create_widgets() # Cria os widgets da aplicação 
+        self.after(1000, self.check_update) # Verifica novamente após 1 segundo
 
 if __name__ == '__main__':
-    # Criando um DataFrame com os dados do arquivo teste.csv
-    dados = pd.read_csv('dadosBD.csv')
-    
-    app = App(dados)
-    app.mainloop()
+   app = App()
+   app.mainloop()
