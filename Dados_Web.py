@@ -41,7 +41,6 @@ class DesempregoParser(HTMLParser):
             self.current_data['Valor'] = dados.strip()
         elif self.in_period:
             self.current_data['Periodo'] = dados.strip()
-            # Assuming that each 'variavel' has exactly one 'Title', 'Value', and 'Periodo'
             self.dados.append(self.current_data)
             self.current_data = {}
 
